@@ -1,15 +1,26 @@
 import sys
 import Pyro4
+import time
 
-ra = sys.argv[1]
-dec = sys.argv[2]
+#takes up to two args for multiple uses (object name, radec, etc.)
+arg1 = sys.argv[1]
+arg2 = sys.argv[2]
 
+#final arg is the function to call
 function = sys.argv[3]
 
+#access proxy motorcontroller
 proxy = Pyro4.core.Proxy("PYRONAME:motorcontroller.server")
-if(float(function) == 1):
-    proxy.motorcontrol(float(ra), float(dec))
-elif(float(function) == 2):
+
+#call the proxy to perform methods based on function
+if(function == "control"):
+    proxy.motorcontrol(float(arg1), float(arg2))
+elif(function == "reset"):
     proxy.reset()
-elif(float(function) == 3):
-    proxy.motorScan(float(ra), float(dec))
+elif(function == "radecScan"):
+    proxy.radecScan(float(arg1), float(arg2))
+elif(function == "objectScan"):
+    proxy.objectScan(arg1)
+elif(function == "stop"):
+    proxy.stopScan()
+exit()
