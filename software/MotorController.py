@@ -34,7 +34,7 @@ class MotorControl(object):
 
         self.location.lon = 41.825
         self.location.lat = -88.2439
-        self.location.elevation = 0
+        self.location.elevation = 230
 
         #####################################################
 
@@ -149,7 +149,7 @@ class MotorControl(object):
         print(positionincounts2)
 
 
-        #if there is a problem with the coordinate, return stop to let scanning methods know to stop
+        #if there is a problem with the coordinate, return "stop" to let scanning methods know to stop
         if positionincounts > 1340:
             print('That Right Ascension is too large for the motor.')
             return "stop"
@@ -162,6 +162,7 @@ class MotorControl(object):
         elif positionincounts2 < 0:
             print('That declination is too small for the motor.')
             return "stop"
+        
         
         if current_state == 1:
             last_state = current_state - 1
@@ -206,8 +207,6 @@ class MotorControl(object):
             print('You have reached your position in motor 1')
             print(currentPositionininches)
             current_state2 = 1
-
-        #commented out for testing; no second motor present
             
         
         if current_state2 == 1:
@@ -305,6 +304,7 @@ class MotorControl(object):
         self.scan = False
 
 
+
     #scans a constant ra/dec value
     @Pyro4.expose
     def radecScan(self, ra, dec, offset = 0):
@@ -320,6 +320,7 @@ class MotorControl(object):
 
         # if the loop breaks due to errors, stop the scan
         self.scan = False
+
 
 
     #converts the ra/dec hours/mins/secs format output by PyEphem to decimal for motorcontrol() method to use
