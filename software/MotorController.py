@@ -4,84 +4,112 @@ import numpy as np
 from datetime import datetime
 import calendar
 import Pyro4
+import ephem
 
 class MotorControl(object):
+
     def __init__(self): #constructor
         self.currentPosition = 0
         self.currentPosition2 = 0
         self.updater = 0
         self.updater2 = 0
+    
+        self.scan = False #notes if the telescope is currently scanning
 
+        #USER DEFINED: Set relay inputs/outputs
+    
         self.firstRelayIn = 6
         self.secondRelayIn = 19
         self.thirdRelayIn = 24
         self.fourthRelayIn = 18
-
+        
         self.motorOneIn = 17
         self.motorTwoIn = 12
 
-    @Pyro4.expose
-    def reset(self):
+        ########################################
+        
+        self.location = ephem.Observer()
+                        
+        #USER DEFINED: Set longitude, latitude, and elevation
+
+        self.location.lon = 41.825
+        self.location.lat = -88.2439
+        self.location.elevation = 0
+
+        #####################################################
+
+        self.location.date = time.strftime("%Y/%m/%d") + " " + time.strftime("%H:%M:%S")
+
         GPIO.setmode(GPIO.BCM)
 
         GPIO.setup(self.firstRelayIn, GPIO.OUT)
         GPIO.setup(self.secondRelayIn, GPIO.OUT)
         GPIO.setup(self.thirdRelayIn, GPIO.OUT)
         GPIO.setup(self.fourthRelayIn, GPIO.OUT)
-        for n in range(20000):
+        GPIO.setup(self.motorOneIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.motorTwoIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    @Pyro4.expose
+    def reset(self):
+        for n in range(25000):
             GPIO.output(self.firstRelayIn, GPIO.HIGH)
             GPIO.output(self.secondRelayIn, GPIO.LOW)
+            time.sleep(0.001)
+        for n in range(20000):
             GPIO.output(self.thirdRelayIn, GPIO.HIGH)
             GPIO.output(self.fourthRelayIn, GPIO.LOW)
-            self.currentPosition = 0
-            self.currentPosition2 = 0
             time.sleep(0.001)
-        GPIO.output(self.firstRelayIn, GPIO.LOW)
-        GPIO.output(self.secondRelayIn, GPIO.LOW)
-        GPIO.output(self.fourthRelayIn, GPIO.LOW)
-        GPIO.output(self.thirdRelayIn, GPIO.LOW)
+        self.currentPosition = 0
+        self.currentPosition2 = 0
+        GPIO.output(self.firstRelayIn, GPIO.HIGH)
+        GPIO.output(self.secondRelayIn, GPIO.HIGH)
+        GPIO.output(self.fourthRelayIn, GPIO.HIGH)
+        GPIO.output(self.thirdRelayIn, GPIO.HIGH)
 
     @Pyro4.expose
     def motorcontrol(self, ra, dec, offset = 0): #creates the function to go to a set length, note: the values have to be in decimal form
-        latitude = 41.825
-        longitude = -88.2439
+        
+        latitude = self.location.lat
+        longitude = self.location.lon
         radegs = ra * 15
-	unitime = datetime.utcnow()
+        unitime = datetime.utcnow()
         ut = unitime.hour + unitime.minute/60.+unitime.second/3600. + offset
         dj2000 = float((calendar.timegm(time.gmtime()) - 946727936.)/86400.) + offset / 24
         lst = 100.46 + 0.985647 * dj2000 + longitude + (15*ut)
+        
         while lst < 0:
             lst += 360
-            if lst > 360:
-                lst -= 360
+        if lst > 360:
+            lst -= 360
 
         while lst > 360:
             lst -= 360
-            if lst < 0:
-                lst += 360
+        if lst < 0:
+            lst += 360
 
         hourAngle = lst-radegs
-
+    
         while hourAngle < 0:
             hourAngle += 360
-            if hourAngle > 360:
-                hourAngle -= 360
+        if hourAngle > 360:
+            hourAngle -= 360
 
         while hourAngle > 360:
             hourAngle -= 360
-            if hourAngle < 0:
-                hourAngle += 360
+        if hourAngle < 0:
+            hourAngle += 360
 
         rightAscension = radegs*(np.pi/180)
         declination = dec*(np.pi/180)
         lat = latitude*(np.pi/180)
         longi = longitude*(np.pi/180)
         ha = hourAngle*(np.pi/180)
-
+        
         sinALT = np.sin(declination)*np.sin(lat)+np.cos(declination)*np.cos(lat)*np.cos(ha)
         radALT = np.arcsin(sinALT)
         ALT = radALT*(180/np.pi)
 
+        
         cosELEV = (np.sin(declination)-np.sin(radALT)*np.sin(lat))/(np.cos(radALT)*np.cos(lat))
         radELEV = np.arccos(cosELEV)
         ELEV  = radELEV*(180/np.pi)
@@ -89,9 +117,10 @@ class MotorControl(object):
             AZ = ELEV
         else:
             AZ = 360-ELEV
-
+        
         print(ALT)
         print(AZ)
+
         
         a = AZ*(np.pi/180)
         e = (ELEV+0.1)*(np.pi/180)
@@ -113,25 +142,32 @@ class MotorControl(object):
         self.currentPosition2
         self.updater = 0
         self.updater2 = 0
-        GPIO.setmode(GPIO.BCM)
-
-        GPIO.setup(self.secondRelayIn, GPIO.OUT)
-        GPIO.setup(self.firstRelayIn, GPIO.OUT)
-        GPIO.setup(self.thirdRelayIn, GPIO.OUT)
-        GPIO.setup(self.fourthRelayIn, GPIO.OUT)
-        GPIO.setup(self.motorOneIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.motorTwoIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
         current_state = 1
 
-        print(position)
-        print(position2)
+        print(positionincounts)
+        print(positionincounts2)
+
+
+        #if there is a problem with the coordinate, return stop to let scanning methods know to stop
+        if positionincounts > 1340:
+            print('That Right Ascension is too large for the motor.')
+            return "stop"
+        elif positionincounts2 > 670: 
+            print('That declination is too large for the motor.')
+            return "stop"
+        elif positionincounts < 0:
+            print('That Right Ascension is too small for the motor.')
+            return "stop"
+        elif positionincounts2 < 0:
+            print('That declination is too small for the motor.')
+            return "stop"
         
         if current_state == 1:
             last_state = current_state - 1
         else:
             last_state = current_state + 1
-        if position > 1340 or position < 0:
+        if positionincounts > 1340 or positionincounts < 0:
             print('That Right Ascension is too large for the motor.')
         else:
             while (self.currentPosition) != positionincounts: #creates a loop till it gets to the position it needs to be at
@@ -171,12 +207,14 @@ class MotorControl(object):
             print(currentPositionininches)
             current_state2 = 1
 
+        #commented out for testing; no second motor present
+            
         
         if current_state2 == 1:
             last_state2 = current_state2 - 1
         else:
             last_state2 = current_state2 + 1
-        if position2 > 670 or position2 < 0:
+        if positionincounts2 > 670 or positionincounts2 < 0:
             print('That declination is too large for the motor.')
         else:
             while (self.currentPosition2) != positionincounts2: #creates a loop till it gets to the position it needs to be at
@@ -214,6 +252,7 @@ class MotorControl(object):
             currentPositionininches2 = positionincounts2/95.47
             print('You have reached your position in motor 2')
             print(currentPositionininches2)
+
         rafile = open('/home/pi/Data/ra.txt', 'w')
         rafile.write(str(ra))
         rafile.close()
@@ -227,8 +266,71 @@ class MotorControl(object):
         pos2file.write(str(currentPositionininches2))
         pos2file.close()
 
+        #if no errors, return nothing
+        return ""
+
+    #stops scanning; used in methods to make sure two scans aren't running at once
     @Pyro4.expose
-    def motorScan(self, ra, dec, offset = 0):
-        while True:
-            self.motorcontrol(ra, dec, offset)
-            time.sleep(5)
+    def stopScan(self):
+        print("----- SCAN STOPPED -----")
+        self.scan = False
+
+    #scans an object based on its name
+    @Pyro4.expose
+    def objectScan(self, object, offset = 0):
+        if self.scan == True: #stops scanning if telescope is already scanning
+            self.stopScan()
+            time.sleep(2)
+        self.scan = True
+
+        #determines what object PyEphem should calculate based on its name
+        o = ""
+        if object == "Sun":
+            o = ephem.Sun(self.location)
+        elif object == "Jupiter":
+            o = ephem.Jupiter(self.location)
+        elif object == "Moon":
+            o = ephem.Moon(self.location)
+        o.compute(self.location)
+
+        #loop with conditions that the motorcontrol program hasn't errored and the scan hasn't been stopped
+        while self.motorcontrol(self.hoursToDecimal(o.ra.__str__()), self.hoursToDecimal(o.dec.__str__()), offset) != "stop" and self.scan == True:
+            #calculate position to point to every second
+            self.location.date = time.strftime("%Y/%m/%d") + " " + time.strftime("%H:%M:%S")
+            o.compute(self.location)
+            time.sleep(1)
+            #motorcontrol statement doesn't need to be called as it's called in the loop condition
+
+        #if the loop breaks due to errors, stop the scan
+        self.scan = False
+
+
+    #scans a constant ra/dec value
+    @Pyro4.expose
+    def radecScan(self, ra, dec, offset = 0):
+        if self.scan == True: #stop scan if telescope is already scanning
+            self.stopScan()
+            time.sleep(2)
+        self.scan = True
+
+        #loop with conditions that the motorcontrol program hasn't errored and the scan hasn't been stopped
+        while self.motorcontrol(ra, dec, offset) != "stop" and self.scan == True:
+            time.sleep(1)
+            #motorcontrol statement doesn't need to be called as it's called in the loop condition
+
+        # if the loop breaks due to errors, stop the scan
+        self.scan = False
+
+
+    #converts the ra/dec hours/mins/secs format output by PyEphem to decimal for motorcontrol() method to use
+    def hoursToDecimal(self, str):
+        output = 0
+        hour = str[:str.index(':')]
+        output += float(hour)
+        str = str[str.index(':') + 1:]
+        minute = str[:str.index(':')]
+        output += float(minute)/60.0
+        str = str[str.index(':') + 1:]
+        second = str
+        output += float(second)/3600.0
+        return output
