@@ -49,6 +49,7 @@ class MotorControl(object):
         GPIO.setup(self.motorOneIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(self.motorTwoIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
+    #reset the telescope
     @Pyro4.expose
     def reset(self):
         for n in range(25000):
@@ -66,17 +67,25 @@ class MotorControl(object):
         GPIO.output(self.fourthRelayIn, GPIO.HIGH)
         GPIO.output(self.thirdRelayIn, GPIO.HIGH)
 
+    #converts inches to position which is then passed to positionMotorMover
     @Pyro4.expose
-    def motorcontrol(self, ra, dec, offset = 0): #creates the function to go to a set length, note: the values have to be in decimal form
-        
+    def inchesMotorMover(self, inches1, inches2, offset = 0):
+        position1 = round(inches1 * 95.47)
+        position2 = round(inches2 * 95.47)
+
+        self.positionMotorMover(self, position1, position2, offset = 0)
+
+    #converts radec to altaz to motor position then passes the position to positionMotorMover
+    @Pyro4.expose
+    def radecMotorMover(self, ra, dec, offset = 0):
         latitude = self.location.lat
         longitude = self.location.lon
         radegs = ra * 15
         unitime = datetime.utcnow()
-        ut = unitime.hour + unitime.minute/60.+unitime.second/3600. + offset
-        dj2000 = float((calendar.timegm(time.gmtime()) - 946727936.)/86400.) + offset / 24
-        lst = 100.46 + 0.985647 * dj2000 + longitude + (15*ut)
-        
+        ut = unitime.hour + unitime.minute / 60. + unitime.second / 3600. + offset
+        dj2000 = float((calendar.timegm(time.gmtime()) - 946727936.) / 86400.) + offset / 24
+        lst = 100.46 + 0.985647 * dj2000 + longitude + (15 * ut)
+
         while lst < 0:
             lst += 360
         if lst > 360:
@@ -87,8 +96,8 @@ class MotorControl(object):
         if lst < 0:
             lst += 360
 
-        hourAngle = lst-radegs
-    
+        hourAngle = lst - radegs
+
         while hourAngle < 0:
             hourAngle += 360
         if hourAngle > 360:
@@ -99,71 +108,78 @@ class MotorControl(object):
         if hourAngle < 0:
             hourAngle += 360
 
-        rightAscension = radegs*(np.pi/180)
-        declination = dec*(np.pi/180)
-        lat = latitude*(np.pi/180)
-        longi = longitude*(np.pi/180)
-        ha = hourAngle*(np.pi/180)
-        
-        sinALT = np.sin(declination)*np.sin(lat)+np.cos(declination)*np.cos(lat)*np.cos(ha)
-        radALT = np.arcsin(sinALT)
-        ALT = radALT*(180/np.pi)
+        rightAscension = radegs * (np.pi / 180)
+        declination = dec * (np.pi / 180)
+        lat = latitude * (np.pi / 180)
+        longi = longitude * (np.pi / 180)
+        ha = hourAngle * (np.pi / 180)
 
-        
-        cosELEV = (np.sin(declination)-np.sin(radALT)*np.sin(lat))/(np.cos(radALT)*np.cos(lat))
+        sinALT = np.sin(declination) * np.sin(lat) + np.cos(declination) * np.cos(lat) * np.cos(ha)
+        radALT = np.arcsin(sinALT)
+        ALT = radALT * (180 / np.pi)
+
+        cosELEV = (np.sin(declination) - np.sin(radALT) * np.sin(lat)) / (np.cos(radALT) * np.cos(lat))
         radELEV = np.arccos(cosELEV)
-        ELEV  = radELEV*(180/np.pi)
+        ELEV = radELEV * (180 / np.pi)
         if np.sin(ha) < 0:
             AZ = ELEV
         else:
-            AZ = 360-ELEV
-        
+            AZ = 360 - ELEV
+
         print(ALT)
         print(AZ)
 
-        
-        a = AZ*(np.pi/180)
-        e = (ELEV+0.1)*(np.pi/180)
-        x = np.cos(a)*np.sin((np.pi/2)-e)
-        z = np.cos((np.pi/2)-e)
+        a = AZ * (np.pi / 180)
+        e = (ELEV + 0.1) * (np.pi / 180)
+        x = np.cos(a) * np.sin((np.pi / 2) - e)
+        z = np.cos((np.pi / 2) - e)
         alpha = np.arccos(x)
-        delta = np.arccos(z/(np.sin(np.arccos(x))))
-        alphaindegs = alpha*(180/np.pi)
-        deltaindegs = delta*(180/np.pi)
-        alphadata_extension = [0, 0.8125, 1.875, 2.125, 2.875, 3.375, 4, 4.75, 5.75, 6.5, 7.5, 8.375, 9.5, 10.5, 11.625, 12.625, 13.4375, 14.4375]
-        alphadata_angle = [23.93, 28.07, 31.26, 34.13, 37.66, 40.89, 43.49, 46.77, 53.45, 58.22, 63.11, 68.13, 74.42, 80.98, 87.46, 94.3, 103.54, 105]
+        delta = np.arccos(z / (np.sin(np.arccos(x))))
+        alphaindegs = alpha * (180 / np.pi)
+        deltaindegs = delta * (180 / np.pi)
+        alphadata_extension = [0, 0.8125, 1.875, 2.125, 2.875, 3.375, 4, 4.75, 5.75, 6.5, 7.5, 8.375, 9.5, 10.5, 11.625,
+                               12.625, 13.4375, 14.4375]
+        alphadata_angle = [23.93, 28.07, 31.26, 34.13, 37.66, 40.89, 43.49, 46.77, 53.45, 58.22, 63.11, 68.13, 74.42,
+                           80.98, 87.46, 94.3, 103.54, 105]
         position = np.interp(alphaindegs, alphadata_angle, alphadata_extension)
         deltadata_extension = [0, 1, 2, 3, 4, 5, 6, 7]
         deltadata_angle = [26, 37, 47, 55, 65, 73, 81, 90]
         position2 = np.interp(deltaindegs, deltadata_angle, deltadata_extension)
-        positionincounts = round(position*95.47)
-        positionincounts2 = round(position2*95.47)
-        self.currentPosition #calls variables
-        self.currentPosition2
-        self.updater = 0
-        self.updater2 = 0
+        positionincounts = round(position * 95.47)
+        positionincounts2 = round(position2 * 95.47)
 
-        current_state = 1
+
 
         print(positionincounts)
         print(positionincounts2)
 
+        self.positionMotorMover(self, positionincounts, positionincounts2, offset = 0)
+
+    #the "final step" so different moving methods call to moving the motors via their position
+    @Pyro4.expose
+    def positionMotorMover(self, positionincounts, positionincounts2, offset = 0): #creates the function to go to a set length, note: the values have to be in decimal form
+
+        self.currentPosition  # calls variables
+        self.currentPosition2
+        self.updater = 0
+        self.updater2 = 0
 
         #if there is a problem with the coordinate, return "stop" to let scanning methods know to stop
         if positionincounts > 1340:
-            print('That Right Ascension is too large for the motor.')
+            print('Motor 1 cannot extend that far.')
             return "stop"
         elif positionincounts2 > 670: 
-            print('That declination is too large for the motor.')
+            print('Motor 2 cannot extend that far.')
             return "stop"
         elif positionincounts < 0:
-            print('That Right Ascension is too small for the motor.')
+            print('Motor 1 cannot retract that far.')
             return "stop"
         elif positionincounts2 < 0:
-            print('That declination is too small for the motor.')
+            print('Motor 2 cannot retract that far.')
             return "stop"
-        
-        
+
+        current_state = 1
+
         if current_state == 1:
             last_state = current_state - 1
         else:
@@ -252,6 +268,9 @@ class MotorControl(object):
             print('You have reached your position in motor 2')
             print(currentPositionininches2)
 
+
+        #commented out for now since no data is being recorded
+        '''
         rafile = open('/home/pi/Data/ra.txt', 'w')
         rafile.write(str(ra))
         rafile.close()
@@ -264,6 +283,7 @@ class MotorControl(object):
         pos2file = open('/home/pi/Data/pos2.txt', 'w')
         pos2file.write(str(currentPositionininches2))
         pos2file.close()
+        '''
 
         #if no errors, return nothing
         return ""
