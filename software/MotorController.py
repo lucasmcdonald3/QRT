@@ -319,6 +319,58 @@ class MotorControl(object):
             o = ephem.Jupiter(self.location)
         elif object == "Moon":
             o = ephem.Moon(self.location)
+        elif object == "Mercury":
+            o = ephem.Mercury(self.location)
+        elif object == "Venus":
+            o = ephem.Venus(self.location)
+        elif object == "Mars":
+            o = ephem.Mars(self.location)
+        elif object == "Saturn":
+            o = ephem.Saturn(self.location)
+        elif object == "Uranus":
+            o = ephem.Uranus(self.location)
+        elif object == "Neptune":
+            o = ephem.Neptune(self.location)
+        elif object == "Pluto":
+            o = ephem.Pluto(self.location)
+        elif object == "Phobos":
+            o = ephem.Phobos(self.location)
+        elif object == "Deimos":
+            o = ephem.Deimos(self.location)
+        elif object == "Io":
+            o = ephem.Io(self.location)
+        elif object == "Europa":
+            o = ephem.Europa(self.location)
+        elif object == "Ganymede":
+            o = ephem.Ganymede(self.location)
+        elif object == "Callisto":
+            o = ephem.Callisto(self.location)
+        elif object == "Mimas":
+            o = ephem.Mimas(self.location)
+        elif object == "Enceladus":
+            o = ephem.Enceladus(self.location)
+        elif object == "Tethys":
+            o = ephem.Tethys(self.location)
+        elif object == "Dione":
+            o = ephem.Dione(self.location)
+        elif object == "Rhea":
+            o = ephem.Rhea(self.location)
+        elif object == "Titan":
+            o = ephem.Titan(self.location)
+        elif object == "Hyperion":
+            o = ephem.Hyperion(self.location)
+        elif object == "Iapetus":
+            o = ephem.Iapetus(self.location)
+        elif object == "Ariel":
+            o = ephem.Ariel(self.location)
+        elif object == "Umbriel":
+            o = ephem.Umbriel(self.location)
+        elif object == "Titania":
+            o = ephem.Titania(self.location)
+        elif object == "Oberon":
+            o = ephem.Oberon(self.location)
+        elif object == "Miranda":
+            o = ephem.Miranda(self.location)
         o.compute(self.location)
 
         #loop with conditions that the motorcontrol program hasn't errored and the scan hasn't been stopped
