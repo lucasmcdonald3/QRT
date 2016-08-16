@@ -9,6 +9,8 @@ import ephem
 class MotorControl(object):
 
     def __init__(self): #constructor
+        
+        
         self.currentPosition = 0
         self.currentPosition2 = 0
         self.updater = 0
@@ -39,7 +41,8 @@ class MotorControl(object):
         #####################################################
 
         self.location.date = time.strftime("%Y/%m/%d") + " " + time.strftime("%H:%M:%S")
-
+    
+        #sets up the Pi GPIO pins to be controllable
         GPIO.setmode(GPIO.BCM)
 
         GPIO.setup(self.firstRelayIn, GPIO.OUT)
@@ -49,23 +52,27 @@ class MotorControl(object):
         GPIO.setup(self.motorOneIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(self.motorTwoIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-    #reset the telescope
+    #reset the telescope by retracting the motors (separately)
     @Pyro4.expose
     def reset(self):
+        #reset first motor
         for n in range(25000):
             GPIO.output(self.firstRelayIn, GPIO.HIGH)
             GPIO.output(self.secondRelayIn, GPIO.LOW)
             time.sleep(0.001)
+        GPIO.output(self.firstRelayIn, GPIO.HIGH)
+        GPIO.output(self.secondRelayIn, GPIO.HIGH)
+        #reset second motor
         for n in range(20000):
             GPIO.output(self.thirdRelayIn, GPIO.HIGH)
             GPIO.output(self.fourthRelayIn, GPIO.LOW)
             time.sleep(0.001)
-        self.currentPosition = 0
-        self.currentPosition2 = 0
-        GPIO.output(self.firstRelayIn, GPIO.HIGH)
-        GPIO.output(self.secondRelayIn, GPIO.HIGH)
         GPIO.output(self.fourthRelayIn, GPIO.HIGH)
         GPIO.output(self.thirdRelayIn, GPIO.HIGH)
+        
+        self.currentPosition = 0
+        self.currentPosition2 = 0
+        
 
     #converts inches to position which is then passed to positionMotorMover
     @Pyro4.expose
@@ -78,6 +85,7 @@ class MotorControl(object):
     #converts radec to altaz to motor position then passes the position to positionMotorMover
     @Pyro4.expose
     def radecMotorMover(self, ra, dec, offset = 0):
+        #radec to altaz calculation - revisit to see if this can be replaced with PyEphem's o.alt and o.az attributes
         latitude = self.location.lat
         longitude = self.location.lon
         radegs = ra * 15
@@ -128,7 +136,8 @@ class MotorControl(object):
 
         print(ALT)
         print(AZ)
-
+        
+        #altaz to position converter (presumably)
         a = AZ * (np.pi / 180)
         e = (ELEV + 0.1) * (np.pi / 180)
         x = np.cos(a) * np.sin((np.pi / 2) - e)
@@ -155,7 +164,7 @@ class MotorControl(object):
 
         self.positionMotorMover(self, positionincounts, positionincounts2, offset = 0)
 
-    #the "final step" so different moving methods call to moving the motors via their position
+    #moves the motors based on position input; the "final step" for any motor control methods
     @Pyro4.expose
     def positionMotorMover(self, positionincounts, positionincounts2, offset = 0): #creates the function to go to a set length, note: the values have to be in decimal form
 
@@ -316,6 +325,7 @@ class MotorControl(object):
         while self.motorcontrol(self.hoursToDecimal(o.ra.__str__()), self.hoursToDecimal(o.dec.__str__()), offset) != "stop" and self.scan == True:
             #calculate position to point to every second
             self.location.date = time.strftime("%Y/%m/%d") + " " + time.strftime("%H:%M:%S")
+            #recompute position of object as it moves
             o.compute(self.location)
             time.sleep(1)
             #motorcontrol statement doesn't need to be called as it's called in the loop condition
