@@ -13,13 +13,13 @@ function = sys.argv[3]
 proxy = Pyro4.core.Proxy("PYRONAME:motorcontroller.server")
 
 #call the proxy to perform methods based on function
-if(function == "counts"):
+if(function == "countsPoint"):
     proxy.positionMotorMover(float(arg1), float(arg2))
 elif(function == "reset"):
     proxy.reset()
-elif(function == "inches"):
+elif(function == "inchesPoint"):
     proxy.inchesMotorMover(float(arg1), float(arg2))
-elif(function == "radecScan"):
+elif(function == "raDecScan"):
     proxy.radecScan(float(arg1), float(arg2))
 elif(function == "objectScan"):
     proxy.objectScan(arg1)
