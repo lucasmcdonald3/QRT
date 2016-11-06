@@ -20,6 +20,25 @@ import select
 import sys
 import Pyro4
 import MotorController
+import time
+import threading
+import math
+
+
+class DataTransmitter(object):
+    
+    def __init__(self):
+        self.startTime = time.time()
+        self.timeRunning = 0
+        self.currentPower = 0
+    
+    
+    @Pyro4.expose
+    def output(self):
+        self.timeRunning = time.time() - self.startTime
+        positionOutput = motorcontroller.positionOutput()
+        return str(math.floor(self.timeRunning)) + ";" + str(self.currentPower) + ";" + str(positionOutput[0]) + ";" + str(positionOutput[1])
+
 
 
 # boilerplate code to create pyro daemons
@@ -30,20 +49,25 @@ pyroDaemon=Pyro4.core.Daemon(host='localhost') # create a pyro daemon
 
 
 # initialize objects whose data we intend to share via pyro
-motorcontroller = MotorController.MotorControl()
+motorcontroller = MotorController.MotorController()
+datacontroller = DataTransmitter()
 # ... repeat as needed for other objects ...
 
 # register the objects with the pyro daemon to get URI
 motorcontroller_uri=pyroDaemon.register(motorcontroller)
+datacontroller_uri=pyroDaemon.register(datacontroller)
 # ... repeat as needed for other objects ...
 
 # register URIs with the nameserver to allow lookup
 nameserverDaemon.nameserver.register("motorcontroller.server",motorcontroller_uri)
+nameserverDaemon.nameserver.register("datacontroller.server",datacontroller_uri)
 # ... repeat as needed for other objects ...
+
+time.sleep(0.01)
 
 
 # Core event loop
-# This is always running in the background.
+# This is always running in the background
 try:
     while True:
         # create sets of the socket objects we will be waiting on

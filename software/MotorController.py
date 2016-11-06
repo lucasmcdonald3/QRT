@@ -1,18 +1,20 @@
-import RPi.GPIO as GPIO
+#import RPi.GPIO as GPIO
 import time
 import numpy as np
 from datetime import datetime
 import calendar
 import Pyro4
 import ephem
+import math
 
-class MotorControl(object):
+class MotorController(object):
 
     def __init__(self): #constructor
         
         
         self.currentPosition = 0
         self.currentPosition2 = 0
+        self.timeRunning = 0
         self.updater = 0
         self.updater2 = 0
     
@@ -41,7 +43,7 @@ class MotorControl(object):
         #####################################################
 
         self.location.date = time.strftime("%Y/%m/%d") + " " + time.strftime("%H:%M:%S")
-    
+        
         #sets up the Pi GPIO pins to be controllable
         GPIO.setmode(GPIO.BCM)
 
@@ -51,10 +53,11 @@ class MotorControl(object):
         GPIO.setup(self.fourthRelayIn, GPIO.OUT)
         GPIO.setup(self.motorOneIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(self.motorTwoIn, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
+    
     #reset the telescope by retracting the motors (separately)
     @Pyro4.expose
     def reset(self):
+        
         #reset first motor
         for n in range(25000):
             GPIO.output(self.firstRelayIn, GPIO.HIGH)
@@ -80,7 +83,8 @@ class MotorControl(object):
         position1 = round(inches1 * 95.47)
         position2 = round(inches2 * 95.47)
 
-        self.positionMotorMover(self, position1, position2, offset = 0)
+        return self.positionMotorMover(position1, position2, offset)
+
 
     #converts radec to altaz to motor position then passes the position to positionMotorMover
     @Pyro4.expose
@@ -162,7 +166,8 @@ class MotorControl(object):
         print(positionincounts)
         print(positionincounts2)
 
-        self.positionMotorMover(self, positionincounts, positionincounts2, offset = 0)
+        return self.positionMotorMover(position1, position2, offset)
+
 
     #moves the motors based on position input; the "final step" for any motor control methods
     @Pyro4.expose
@@ -174,19 +179,31 @@ class MotorControl(object):
         self.updater2 = 0
 
         #if there is a problem with the coordinate, return "stop" to let scanning methods know to stop
-        if positionincounts > 1340:
+        if positionincounts > 1340 and positionincounts2 > 670:
+            print('Neither motor can extend that far.')
+            return "Neither motor can extend that far."
+            self.scan = False
+        if positionincounts < 0 and positionincounts2 < 0:
+            print('Neither motor can retract that far.')
+            return "Neither motor can retract that far."
+            self.scan = False
+        elif positionincounts > 1340:
             print('Motor 1 cannot extend that far.')
-            return "stop"
+            return "Motor 1 cannot extend that far."
+            self.scan = False
         elif positionincounts2 > 670: 
             print('Motor 2 cannot extend that far.')
-            return "stop"
+            return "Motor 2 cannot extend that far."
+            self.scan = False
         elif positionincounts < 0:
             print('Motor 1 cannot retract that far.')
-            return "stop"
+            return "Motor 1 cannot retract that far."
+            self.scan = False
         elif positionincounts2 < 0:
             print('Motor 2 cannot retract that far.')
-            return "stop"
-
+            return "Motor 2 cannot retract that far."
+            self.scan = False
+        
         current_state = 1
 
         if current_state == 1:
@@ -276,10 +293,12 @@ class MotorControl(object):
             currentPositionininches2 = positionincounts2/95.47
             print('You have reached your position in motor 2')
             print(currentPositionininches2)
-
-
-        #commented out for now since no data is being recorded
-        '''
+        
+        
+        self.currentPosition = positionincounts
+        self.currentPosition2 = positionincounts2
+        
+        
         rafile = open('/home/pi/Data/ra.txt', 'w')
         rafile.write(str(ra))
         rafile.close()
@@ -287,15 +306,15 @@ class MotorControl(object):
         decfile.write(str(dec))
         decfile.close()
         pos1file = open('/home/pi/Data/pos1.txt', 'w')
-        pos1file.write(str(currentPositionininches))
+        pos1file.write(str(currentPositionincounts))
         pos1file.close()
         pos2file = open('/home/pi/Data/pos2.txt', 'w')
-        pos2file.write(str(currentPositionininches2))
+        pos2file.write(str(currentPositionincounts2))
         pos2file.close()
-        '''
+        
+        
 
-        #if no errors, return nothing
-        return ""
+        return "success"
 
     #stops scanning; used in methods to make sure two scans aren't running at once
     @Pyro4.expose
@@ -373,8 +392,9 @@ class MotorControl(object):
             o = ephem.Miranda(self.location)
         o.compute(self.location)
 
-        #loop with conditions that the motorcontrol program hasn't errored and the scan hasn't been stopped
-        while self.motorcontrol(self.hoursToDecimal(o.ra.__str__()), self.hoursToDecimal(o.dec.__str__()), offset) != "stop" and self.scan == True:
+        #loop with condition the scan hasn't been stopped
+        while self.scan == True:
+            self.motorcontrol(self.hoursToDecimal(o.ra.__str__()), self.hoursToDecimal(o.dec.__str__()), offset)
             #calculate position to point to every second
             self.location.date = time.strftime("%Y/%m/%d") + " " + time.strftime("%H:%M:%S")
             #recompute position of object as it moves
@@ -392,17 +412,15 @@ class MotorControl(object):
     def radecScan(self, ra, dec, offset = 0):
         if self.scan == True: #stop scan if telescope is already scanning
             self.stopScan()
-            time.sleep(2)
+            time.sleep(1.3)
         self.scan = True
-
-        #loop with conditions that the motorcontrol program hasn't errored and the scan hasn't been stopped
-        while self.motorcontrol(ra, dec, offset) != "stop" and self.scan == True:
+        #loop with conditions that the scan hasn't been stopped
+        while self.scan == True:
+            self.motorcontrol(ra, dec, offset)
             time.sleep(1)
             #motorcontrol statement doesn't need to be called as it's called in the loop condition
-
         # if the loop breaks due to errors, stop the scan
         self.scan = False
-
 
 
     #converts the ra/dec hours/mins/secs format output by PyEphem to decimal for motorcontrol() method to use
@@ -417,3 +435,7 @@ class MotorControl(object):
         second = str
         output += float(second)/3600.0
         return output
+
+    @Pyro4.expose
+    def positionOutput(self):
+        return [self.currentPosition, self.currentPosition2]

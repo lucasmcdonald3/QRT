@@ -10,19 +10,22 @@ arg2 = sys.argv[2]
 function = sys.argv[3]
 
 #access proxy motorcontroller
-proxy = Pyro4.core.Proxy("PYRONAME:motorcontroller.server")
+proxymotor = Pyro4.core.Proxy("PYRONAME:motorcontroller.server")
+proxydata = Pyro4.core.Proxy("PYRONAME:datacontroller.server")
 
 #call the proxy to perform methods based on function
 if(function == "countsPoint"):
-    proxy.positionMotorMover(float(arg1), float(arg2))
+    print(proxymotor.positionMotorMover(float(arg1), float(arg2)))
 elif(function == "reset"):
-    proxy.reset()
+    proxymotor.reset()
 elif(function == "inchesPoint"):
-    proxy.inchesMotorMover(float(arg1), float(arg2))
+    print(proxymotor.inchesMotorMover(float(arg1), float(arg2)))
 elif(function == "raDecScan"):
-    proxy.radecScan(float(arg1), float(arg2))
+    print(proxymotor.radecScan(float(arg1), float(arg2)))
 elif(function == "objectScan"):
-    proxy.objectScan(arg1)
+    print(proxymotor.objectScan(arg1))
 elif(function == "stop"):
-    proxy.stopScan()
+    proxymotor.stopScan()
+elif(function == "getOutput"):
+    print(proxydata.output())
 exit()
